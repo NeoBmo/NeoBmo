@@ -21,29 +21,41 @@ const BAR_CELLS = 18;
 
 const token = process.env.GH_TOKEN ?? execFileSync("gh", ["auth", "token"], { encoding: "utf8" }).trim();
 
-/** Una sola consulta trae repos, lenguajes y contribuciones. Sólo se publican agregados. */
-async function fetchStats() {
-  const query = `query($login:String!){user(login:$login){
-    repositories(first:100,ownerAffiliations:OWNER){nodes{languages(first:20){nodes{name}}}}
+/** Pide una página de repos con sus lenguajes y las contribuciones del usuario. */
+async function fetchPage(after) {
+  const query = `query($login:String!,$after:String){user(login:$login){
+    repositories(first:100,after:$after,ownerAffiliations:OWNER){
+      totalCount pageInfo{hasNextPage endCursor} nodes{languages(first:20){nodes{name}}}}
     contributionsCollection{contributionCalendar{totalContributions}}}}`;
   const response = await fetch("https://api.github.com/graphql", {
     method: "POST",
     headers: { authorization: `Bearer ${token}`, "user-agent": "neobmo-profile" },
-    body: JSON.stringify({ query, variables: { login: LOGIN } }),
+    body: JSON.stringify({ query, variables: { login: LOGIN, after } }),
   });
   if (!response.ok) throw new Error(`GitHub respondió ${response.status}`);
   const { data, errors } = await response.json();
   if (errors) throw new Error(errors[0].message);
+  if (!data.user) throw new Error(`No existe el usuario ${LOGIN}`);
+  return data.user;
+}
 
-  // Contamos repos por lenguaje, no bytes: un archivo generado no debe aplastar lo demás.
-  const repos = data.user.repositories.nodes;
+/** Recorre todas las páginas. Del resultado sólo se publican agregados. */
+async function fetchStats() {
   const counts = new Map();
-  for (const repo of repos) {
-    for (const { name } of repo.languages.nodes) counts.set(name, (counts.get(name) ?? 0) + 1);
-  }
+  let after = null;
+  let user;
+  do {
+    user = await fetchPage(after);
+    // Contamos repos por lenguaje, no bytes: un archivo generado no debe aplastar lo demás.
+    for (const repo of user.repositories.nodes) {
+      for (const { name } of repo.languages.nodes) counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    after = user.repositories.pageInfo.endCursor;
+  } while (user.repositories.pageInfo.hasNextPage);
+
   return {
-    repos: repos.length,
-    contributions: data.user.contributionsCollection.contributionCalendar.totalContributions,
+    repos: user.repositories.totalCount,
+    contributions: user.contributionsCollection.contributionCalendar.totalContributions,
     languages: [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])),
   };
 }
@@ -57,7 +69,7 @@ const smooth = (a, b, x) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
 };
-const escape = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const escape = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const hex = (r, g, b) => "#" + [r, g, b].map((v) => Math.round(v / 17).toString(16)).join("");
 const round = (n) => +n.toFixed(1);
 
@@ -111,8 +123,8 @@ function bar(count, max) {
 
 /** Cada línea es un bloque: `type` se escribe carácter a carácter; el resto aparece. */
 function terminalLines(stats) {
-  const nameWidth = Math.max(...stats.languages.map(([name]) => name.length)) + 2;
-  const max = stats.languages[0][1];
+  const nameWidth = Math.max(0, ...stats.languages.map(([name]) => name.length)) + 2;
+  const max = stats.languages[0]?.[1] ?? 1;
   return [
     { command: "whoami" },
     ...WHO.map((text, i) => ({ text, color: i ? MUTED : SIGNAL })),
