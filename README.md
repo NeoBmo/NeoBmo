@@ -1,6 +1,13 @@
-# Hola, soy NeoBmo 👋
+<a href="https://neobmo.github.io">
+  <img src="assets/banner.png" width="100%" alt="Caracteres sueltos que, de izquierda a derecha, convergen en La noche estrellada de Van Gogh dibujada en ASCII." />
+</a>
 
-### 🧭 Sobre mí
+```text
+> hola, soy NeoBmo
+> Luis Rodríguez█
+```
+
+### > sobre mí
 
 Soy un desarrollador frontend autodidacta de **Barranquilla, Colombia**. En casi 5 años he trabajado en distintos frentes: dando forma a interfaces, dando sentido a datos, y ayudando a negocios a llevar ideas a producción. Ahora canalizo esa experiencia en crecer y construir algo mío
 
@@ -8,9 +15,7 @@ No vengo de una carrera tradicional en sistemas — vengo de aprender resolviend
 
 Prefiero ser honesto sobre en qué estoy creciendo a aparentar una experiencia que no tengo. Este perfil es justamente eso: un reflejo real de mi camino, no una vitrina.
 
----
-
-### 💼 En qué me muevo bien
+### > en qué me muevo bien
 
 - **Frontend real:** React, TypeScript, Next.js, TailwindCSS — mi base más sólida.
 - **De Figma a producción:** traducir diseños a interfaces funcionales y mantenibles.
@@ -19,22 +24,16 @@ Prefiero ser honesto sobre en qué estoy creciendo a aparentar una experiencia q
 - **Conectando piezas:** APIs, CRMs, Meta/WhatsApp, automatizaciones de negocio.
 - **Full-stack funcional:** entiendo APIs, bases de datos y arquitectura lo suficiente para no perderme en una conversación técnica completa.
 
----
-
-### 🚧 En lo que estoy ahora
+### > en lo que estoy ahora
 
 Estoy construyendo **Career Kit**, una herramienta que empezó como un sistema modular en LaTeX para generar CVs, y que estoy evolucionando hacia una app con IA (Next.js + TypeScript + Supabase + Claude API) que convierte la experiencia de cualquier persona en un CV profesional usando metodología XYZ.
 
----
+### > stack
 
-### 🛠️ Stack
-
-<p align="left">
-  <img src="https://skillicons.dev/icons?i=react,ts,nextjs,tailwind,js,html,css,figma,git,github" />
-</p>
+`React` `TypeScript` `Next.js` `TailwindCSS` `JavaScript` `HTML` `CSS` `Figma` `Git` `GitHub`
 
 ---
 
 > Prefiero un crecimiento honesto a una senioridad proyectada. Lo que ves aquí es lo que soy hoy — lo interesante está en cada repositorio.
 
-📫 **¿Hablamos?** [WhatsApp](https://wa.me/+573241506385) · [Portfolio](https://neobmo.github.io/Repository/)
+**¿Hablamos?** [WhatsApp](https://wa.me/+573241506385) · [Portfolio](https://neobmo.github.io)
