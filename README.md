@@ -1,6 +1,6 @@
 <a href="https://neobmo.github.io">
   <picture>
-    <source media="(max-width: 600px)" srcset="assets/profile-narrow.svg" />
+    <source media="(max-width: 600px), (min-width: 768px) and (max-width: 1011px)" srcset="assets/profile-narrow.svg" />
     <img src="assets/profile-wide.svg" width="100%" alt="Caracteres sueltos convergen en La noche estrellada dibujada en ASCII, mientras una terminal escribe quién soy, en qué trabajo y los lenguajes de mis repositorios." />
   </picture>
 </a>
