@@ -1,8 +1,10 @@
-// Genera la portada del perfil: el ruido converge en La noche estrellada y una
-// terminal escribe quién soy. No lee repositorios: sólo el arte y la identidad.
-// Uso: node scripts/build-profile.mjs
+// Genera la portada del perfil y una tarjeta de estadísticas con el mismo lenguaje visual.
+// Las estadísticas sólo leen repositorios públicos; los privados nunca se piden.
+// Uso: GH_TOKEN=... node scripts/build-profile.mjs  (o, en local, con `gh` autenticado)
+import { execFileSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 
+const LOGIN = "NeoBmo";
 const IDENTITY = ["luis rodríguez · neobmo", "frontend developer · barranquilla"];
 const DESCRIPTION = "Caracteres sueltos convergen en La noche estrellada dibujada en ASCII. Luis Rodríguez, NeoBmo: frontend developer en Barranquilla.";
 
@@ -11,9 +13,57 @@ const MOON = "#f4c95d";
 const VOID = "#000";
 const SIGNAL = "#fff";
 const MUTED = "#9aa4b2";
+const BARS = [MOON, "#8fc3ea", "#5f86e8", "#7fd1c7", "#e9a24c", "#b7c7f2", "#d9dfe8"];
 
 const TEXT = { size: 15, line: 24, char: 9 };
 const BUCKETS = 10;
+const BAR_CELLS = 18;
+const CARD_PADDING = 30;
+
+const token = process.env.GH_TOKEN ?? execFileSync("gh", ["auth", "token"], { encoding: "utf8" }).trim();
+
+/** Pide una página de repos públicos y las contribuciones del usuario. */
+async function fetchPage(after) {
+  const query = `query($login:String!,$after:String){user(login:$login){
+    repositories(first:100,after:$after,ownerAffiliations:OWNER,privacy:PUBLIC){
+      totalCount pageInfo{hasNextPage endCursor}
+      nodes{isPrivate languages(first:20){nodes{name}}}}
+    contributionsCollection{restrictedContributionsCount contributionCalendar{totalContributions}}}}`;
+  const response = await fetch("https://api.github.com/graphql", {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "user-agent": "neobmo-profile" },
+    body: JSON.stringify({ query, variables: { login: LOGIN, after } }),
+  });
+  if (!response.ok) throw new Error(`GitHub respondió ${response.status}`);
+  const { data, errors } = await response.json();
+  if (errors) throw new Error(errors[0].message);
+  if (!data.user) throw new Error(`No existe el usuario ${LOGIN}`);
+  return data.user;
+}
+
+/** Recorre todas las páginas y se detiene antes de publicar si aparece un repo privado. */
+async function fetchStats() {
+  const counts = new Map();
+  let after = null;
+  let user;
+  do {
+    user = await fetchPage(after);
+    for (const repo of user.repositories.nodes) {
+      if (repo.isPrivate) throw new Error("La consulta devolvió un repositorio privado");
+      // Contamos repos por lenguaje, no bytes: un archivo generado no debe aplastar lo demás.
+      for (const { name } of repo.languages.nodes) counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    after = user.repositories.pageInfo.endCursor;
+  } while (user.repositories.pageInfo.hasNextPage);
+
+  const { contributionCalendar, restrictedContributionsCount } = user.contributionsCollection;
+  return {
+    repos: user.repositories.totalCount,
+    // El calendario suma actividad privada; aquí sólo se muestra la pública.
+    contributions: contributionCalendar.totalContributions - restrictedContributionsCount,
+    languages: [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])),
+  };
+}
 
 /** Generador con semilla: la misma entrada produce el mismo SVG y el diff queda limpio. */
 function seeded(seed) {
@@ -89,6 +139,80 @@ function terminalLayer({ x, y, start }) {
       `<rect class="cursor" x="${x + (role.length + 1) * TEXT.char}" y="${lastLine - TEXT.size + 2}" width="${TEXT.char}" height="${TEXT.size + 2}" fill="${SIGNAL}" style="--t:${(printed + 0.2).toFixed(2)}s"/>`,
     ].join("\n"),
   };
+}
+
+/** Barra hecha con la rampa de densidad del motor: termina en polvo, no en un borde. */
+function bar(count, max) {
+  const length = Math.max(3, Math.round((count / max) * BAR_CELLS));
+  return "@".repeat(length - 3) + "#+:";
+}
+
+const heading = (x, y, command) =>
+  `<text x="${x}" y="${y}"><tspan fill="${MOON}">&gt;</tspan><tspan fill="${SIGNAL}" dx="${TEXT.char}">${escape(command)}</tspan></text>`;
+
+const row = (x, y, parts) =>
+  `<text x="${x}" y="${y}" xml:space="preserve">${parts.map(([text, fill]) => `<tspan fill="${fill}">${escape(text)}</tspan>`).join("")}</text>`;
+
+function languageRows({ languages }, x, y) {
+  const nameWidth = Math.max(0, ...languages.map(([name]) => name.length)) + 2;
+  const max = languages[0]?.[1] ?? 1;
+  return languages.slice(0, 8).map(([name, count], i) =>
+    row(x, y + TEXT.line * (i + 1), [
+      [name.padEnd(nameWidth), MUTED],
+      [bar(count, max), BARS[i % BARS.length]],
+      [` ${count}`, SIGNAL],
+    ]),
+  );
+}
+
+function totalRows(stats, x, y) {
+  const totals = [
+    ["repos", stats.repos],
+    ["contribuciones", stats.contributions],
+    ["lenguajes", stats.languages.length],
+  ];
+  return totals.map(([label, value], i) =>
+    row(x, y + TEXT.line * (i + 1), [[label.padEnd(16), MUTED], [String(value), SIGNAL]]),
+  );
+}
+
+function card({ width, height, stats, body, fontBase64 }) {
+  const languages = stats.languages.map(([name, count]) => `${name} ${count}`).join(", ");
+  const description = `Estadísticas de repositorios públicos: ${stats.repos} repositorios, ${stats.contributions} contribuciones en un año. Lenguajes por repositorio: ${languages}.`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="${escape(description)}">
+<title>${escape(description)}</title>
+<style>@font-face{font-family:M;font-weight:100 800;src:url(data:font/woff2;base64,${fontBase64}) format("woff2")}
+text{font-family:M,ui-monospace,monospace;font-size:${TEXT.size}px;font-weight:500;white-space:pre}</style>
+<rect width="${width}" height="${height}" fill="${VOID}"/>
+${body.join("\n")}
+</svg>
+`;
+}
+
+function buildStatsWide(stats, fontBase64) {
+  const y = CARD_PADDING + TEXT.size;
+  const rows = Math.max(Math.min(stats.languages.length, 8), 3);
+  const body = [
+    heading(CARD_PADDING, y, "langs --publicos"),
+    ...languageRows(stats, CARD_PADDING, y),
+    heading(560, y, "stats --publicas"),
+    ...totalRows(stats, 560, y),
+  ];
+  return card({ width: 900, height: y + TEXT.line * rows + CARD_PADDING, stats, body, fontBase64 });
+}
+
+function buildStatsNarrow(stats, fontBase64) {
+  const x = 22;
+  const y = CARD_PADDING + TEXT.size;
+  const languageCount = Math.min(stats.languages.length, 8);
+  const totalsY = y + TEXT.line * (languageCount + 2);
+  const body = [
+    heading(x, y, "langs --publicos"),
+    ...languageRows(stats, x, y),
+    heading(x, totalsY, "stats --publicas"),
+    ...totalRows(stats, x, totalsY),
+  ];
+  return card({ width: 440, height: totalsY + TEXT.line * 3 + CARD_PADDING, stats, body, fontBase64 });
 }
 
 function styles(fontBase64) {
@@ -177,3 +301,9 @@ const load = async (name) => JSON.parse(await readFile(`assets/${name}.json`, "u
 
 await writeFile("assets/profile-wide.svg", buildWide(await load("painting-wide"), fontBase64));
 await writeFile("assets/profile-narrow.svg", buildNarrow(await load("painting-narrow"), fontBase64));
+
+const stats = await fetchStats();
+await writeFile("assets/stats-wide.svg", buildStatsWide(stats, fontBase64));
+await writeFile("assets/stats-narrow.svg", buildStatsNarrow(stats, fontBase64));
+
+console.log(`${stats.repos} repos públicos · ${stats.contributions} contribuciones · ${stats.languages.map(([n, c]) => `${n} ${c}`).join(", ")}`);

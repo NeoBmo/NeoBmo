@@ -5,4 +5,9 @@
   </picture>
 </a>
 
+<picture>
+  <source media="(max-width: 600px), (min-width: 768px) and (max-width: 1011px)" srcset="assets/stats-narrow.svg" />
+  <img src="assets/stats-wide.svg" width="100%" alt="Lenguajes por repositorio y totales de mi actividad pública en GitHub." />
+</picture>
+
 [portafolio](https://neobmo.github.io) · [blog](https://github.com/NeoBmo/blogrdeveloper) · [lobos negros](https://github.com/NeoBmo/LobosNegros) · [linkedin](https://www.linkedin.com/in/luis-rodriguez-reales/)
