@@ -16,6 +16,12 @@ const MUTED = "#9aa4b2";
 const BARS = [MOON, "#8fc3ea", "#5f86e8", "#7fd1c7", "#e9a24c", "#b7c7f2", "#d9dfe8"];
 
 const TEXT = { size: 15, line: 24, char: 9 };
+const STACK = [
+  ["neobmo", "NeoBmo"], ["html5", "HTML"], ["css", "CSS"], ["javascript", "JavaScript"],
+  ["typescript", "TypeScript"], ["react", "React"], ["nextdotjs", "Next.js"], ["astro", "Astro"],
+  ["tailwindcss", "Tailwind"], ["figma", "Figma"], ["supabase", "Supabase"], ["vercel", "Vercel"],
+  ["shopify", "Shopify"], ["git", "Git"], ["claude", "Claude"], ["opencode", "OpenCode"],
+];
 const BUCKETS = 10;
 const BAR_CELLS = 18;
 const CARD_PADDING = 30;
@@ -215,6 +221,43 @@ function buildStatsNarrow(stats, fontBase64) {
   return card({ width: 440, height: totalsY + TEXT.line * 3 + CARD_PADDING, stats, body, fontBase64 });
 }
 
+/** Reduce un logo a su forma: sin título ni colores propios, para pintarlo con la marca. */
+async function loadLogo(slug) {
+  const source = await readFile(`assets/logos/${slug}.svg`, "utf8");
+  const size = Number(source.match(/viewBox="0 0 (\d+)/)[1]);
+  const shape = source
+    .replace(/^[\s\S]*?<svg[^>]*>/, "")
+    .replace(/<\/svg>\s*$/, "")
+    .replace(/<title>[\s\S]*?<\/title>/, "")
+    .replace(/\sfill="[^"]*"/g, "");
+  return { size, shape };
+}
+
+/** Franja de logos: una sola imagen evita depender de servicios externos y del maquetado de GitHub. */
+async function buildStack({ width, columns, fontBase64 }) {
+  const tile = { width: width / columns, height: 88 };
+  const icon = 30;
+  const logos = await Promise.all(STACK.map(([slug]) => loadLogo(slug)));
+  const tiles = STACK.map(([, label], i) => {
+    const x = (i % columns) * tile.width;
+    const y = Math.floor(i / columns) * tile.height + 12;
+    const { size, shape } = logos[i];
+    const iconX = round(x + (tile.width - icon) / 2);
+    return `<g transform="translate(${iconX} ${y + 8}) scale(${(icon / size).toFixed(4)})" fill="${SIGNAL}">${shape}</g>
+<text x="${round(x + tile.width / 2)}" y="${y + 62}" fill="${MUTED}" text-anchor="middle">${escape(label)}</text>`;
+  });
+  const height = Math.ceil(STACK.length / columns) * tile.height + 20;
+  const description = `Stack: ${STACK.slice(1).map(([, label]) => label).join(", ")}.`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="${escape(description)}">
+<title>${escape(description)}</title>
+<style>@font-face{font-family:M;font-weight:100 800;src:url(data:font/woff2;base64,${fontBase64}) format("woff2")}
+text{font-family:M,ui-monospace,monospace;font-size:12px;font-weight:500}</style>
+<rect width="${width}" height="${height}" fill="${VOID}"/>
+${tiles.join("\n")}
+</svg>
+`;
+}
+
 function styles(fontBase64) {
   const delays = Array.from({ length: BUCKETS }, (_, i) => `.p${i}{animation-delay:${(1 + i * 0.17).toFixed(2)}s}.n${i},.d${i}{animation-delay:${(i * 0.09).toFixed(2)}s}`).join("");
   return `@font-face{font-family:M;font-weight:100 800;src:url(data:font/woff2;base64,${fontBase64}) format("woff2")}
@@ -301,6 +344,9 @@ const load = async (name) => JSON.parse(await readFile(`assets/${name}.json`, "u
 
 await writeFile("assets/profile-wide.svg", buildWide(await load("painting-wide"), fontBase64));
 await writeFile("assets/profile-narrow.svg", buildNarrow(await load("painting-narrow"), fontBase64));
+
+await writeFile("assets/stack-wide.svg", await buildStack({ width: 900, columns: 8, fontBase64 }));
+await writeFile("assets/stack-narrow.svg", await buildStack({ width: 440, columns: 4, fontBase64 }));
 
 const stats = await fetchStats();
 await writeFile("assets/stats-wide.svg", buildStatsWide(stats, fontBase64));
